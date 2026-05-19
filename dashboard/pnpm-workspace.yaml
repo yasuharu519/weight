@@ -1,0 +1,6 @@
+# pnpm 11: 依存のビルドスクリプト許可は allowBuilds で明示する
+# （package.json の "pnpm" フィールドや onlyBuiltDependencies は pnpm 11 では読まれない）。
+# Astro v6 が依存する esbuild / sharp はネイティブ binary 取得のため許可が必要。
+allowBuilds:
+  esbuild: true
+  sharp: true
