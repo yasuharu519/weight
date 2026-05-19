@@ -51,9 +51,9 @@ jobs:
             }' >> data.jsonl
 
             # 最新データを取得（通知用）
-            latest_weight=$(echo "$response" | jq -r '.result[0].results[-1].weight')
-            latest_fat_ratio=$(echo "$response" | jq -r '.result[0].results[-1].fat_ratio')
-            latest_muscle=$(echo "$response" | jq -r '.result[0].results[-1].muscle_mass')
+            latest_weight=$(echo "$response" | jq -r '(.result[0].results[-1].weight * 100 | round) / 100')
+            latest_fat_ratio=$(echo "$response" | jq -r '(.result[0].results[-1].fat_ratio * 100 | round) / 100')
+            latest_muscle=$(echo "$response" | jq -r '(.result[0].results[-1].muscle_mass * 100 | round) / 100')
             echo "latest_weight=${latest_weight}" >> "$GITHUB_OUTPUT"
             echo "latest_fat_ratio=${latest_fat_ratio}" >> "$GITHUB_OUTPUT"
             echo "latest_muscle=${latest_muscle}" >> "$GITHUB_OUTPUT"
@@ -87,7 +87,7 @@ jobs:
         env:
           INCOMING_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
-          text: Weight synced from D1!
+          text: "Weight updated! https://yasuharu519.github.io/weight/"
           attachments: |
             [
               {
