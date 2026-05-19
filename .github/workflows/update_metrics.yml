@@ -87,7 +87,7 @@ jobs:
         env:
           INCOMING_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
-          text: Weight synced from D1!
+          text: "Weight updated! https://yasuharu519.github.io/weight/"
           attachments: |
             [
               {
