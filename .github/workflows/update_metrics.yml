@@ -69,9 +69,10 @@ jobs:
           git add data.jsonl
           datetime=$(date '+%F %T')
           git commit -m "Sync weight data from D1 on ${datetime}"
-          git push
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_REF_NAME}"
         env:
           TZ: Asia/Tokyo
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Post on Pixela
         if: steps.fetch.outputs.count != '0'
