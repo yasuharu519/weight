@@ -13,7 +13,7 @@ const maJson = JSON.stringify(movingAvg);
 
 <div class="bg-card rounded-2xl border border-border p-4 md:p-6 shadow-sm mb-6 md:mb-8 animate-fade-up" style="animation-delay: 0.16s;">
   <div class="flex items-center justify-between mb-4 md:mb-5">
-    <h2 class="font-display text-base md:text-lg font-500 tracking-tight text-ink">体重</h2>
+    <h2 class="font-display text-base md:text-lg font-medium tracking-tight text-ink">体重</h2>
     <div class="flex gap-1 md:gap-1.5" id="weight-period-buttons">
       <button data-period="1" class="period-btn">1M</button>
       <button data-period="3" class="period-btn">3M</button>
@@ -59,6 +59,9 @@ const maJson = JSON.stringify(movingAvg);
   Chart.defaults.font.size = 11;
   Chart.defaults.color = "#9ca3af";
   Chart.defaults.borderColor = "rgba(0,0,0,0.04)";
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    Chart.defaults.animation = false;
+  }
 
   const chart = new Chart(document.getElementById("weight-chart") as HTMLCanvasElement, {
     type: "line",

@@ -10,14 +10,15 @@ const dataJson = JSON.stringify(data);
 ---
 
 <div class="bg-card rounded-2xl border border-border p-4 md:p-6 shadow-sm mb-6 md:mb-8 animate-fade-up" style="animation-delay: 0.32s;">
-  <div class="flex items-center justify-between mb-4 md:mb-5">
-    <h2 class="font-display text-base md:text-lg font-500 tracking-tight text-ink">月次トレンド</h2>
+  <div class="flex items-center justify-between mb-1">
+    <h2 class="font-display text-base md:text-lg font-medium tracking-tight text-ink">月次トレンド</h2>
     <div class="flex gap-1 md:gap-1.5" id="monthly-period-buttons">
-      <button data-period="2" class="monthly-btn monthly-active">2Y</button>
+      <button data-period="2" class="monthly-btn">2Y</button>
       <button data-period="5" class="monthly-btn">5Y</button>
-      <button data-period="all" class="monthly-btn">ALL</button>
+      <button data-period="all" class="monthly-btn monthly-active">ALL</button>
     </div>
   </div>
+  <p class="text-xs text-ink-muted mb-4 md:mb-5">月平均体重と前月比の増減(橙 = 増・緑 = 減)</p>
   <div class="h-[260px] md:h-[320px]">
     <canvas id="monthly-chart"></canvas>
   </div>
@@ -45,66 +46,105 @@ const dataJson = JSON.stringify(data);
 
   const data = (window as any).__monthlyData;
 
-  const years = [...new Set(data.map((d: any) => d.year))] as number[];
-  const palette = [
-    "rgba(67, 56, 202, 0.55)",
-    "rgba(194, 65, 12, 0.50)",
-    "rgba(21, 128, 61, 0.50)",
-    "rgba(147, 51, 234, 0.50)",
-    "rgba(202, 138, 4, 0.50)",
-    "rgba(14, 116, 144, 0.50)",
-    "rgba(190, 18, 60, 0.50)",
-    "rgba(79, 70, 229, 0.45)",
-    "rgba(234, 88, 12, 0.45)",
-    "rgba(22, 163, 74, 0.45)",
-    "rgba(168, 85, 247, 0.45)",
-  ];
+  // 欠測月も含む連続した月軸を作り、データのない月は null にする。
+  // こうすると 2024→2026 のような欠測期間が線の途切れとして正直に表示される
+  const byMonth = new Map<string, number>(
+    data.map((d: any) => [d.month, d.weight]),
+  );
+  const first = data[0].month;
+  const last = data[data.length - 1].month;
 
-  const yearColors = new Map<number, string>();
-  years.forEach((y, i) => yearColors.set(y, palette[i % palette.length]));
+  const allMonths: string[] = [];
+  {
+    let [y, m] = first.split("-").map(Number);
+    const [ly, lm] = last.split("-").map(Number);
+    while (y < ly || (y === ly && m <= lm)) {
+      allMonths.push(`${y}-${String(m).padStart(2, "0")}`);
+      m++;
+      if (m > 12) { m = 1; y++; }
+    }
+  }
 
-  const allMonths = data.map((d: any) => d.month);
-  const allWeights = data.map((d: any) => d.weight);
-  const allColors = data.map((d: any) => yearColors.get(d.year));
+  const allWeights = allMonths.map((m) => byMonth.get(m) ?? null);
+  // 前月比: 連続する2か月ともデータがある場合のみ算出
+  const allDeltas = allMonths.map((m, i) => {
+    if (i === 0) return null;
+    const cur = allWeights[i];
+    const prev = allWeights[i - 1];
+    if (cur == null || prev == null) return null;
+    return Math.round((cur - prev) * 100) / 100;
+  });
+
+  const WARM = "rgba(194, 65, 12, 0.55)";
+  const SAGE = "rgba(21, 128, 61, 0.5)";
+  const deltaColors = (deltas: (number | null)[]) =>
+    deltas.map((d) => (d != null && d > 0 ? WARM : SAGE));
 
   function getFilteredData(periodYears: number | "all") {
-    if (periodYears === "all") {
-      return { months: allMonths, weights: allWeights, colors: allColors };
-    }
-    const lastMonth = allMonths[allMonths.length - 1];
-    const lastDate = new Date(lastMonth + "-01");
-    const cutoff = new Date(lastDate);
-    cutoff.setFullYear(cutoff.getFullYear() - periodYears);
-    const cutoffMonth = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}`;
-    const startIdx = allMonths.findIndex((m: string) => m >= cutoffMonth);
-    if (startIdx < 0) return { months: allMonths, weights: allWeights, colors: allColors };
+    const start =
+      periodYears === "all"
+        ? 0
+        : Math.max(0, allMonths.length - periodYears * 12);
+    const weights = allWeights.slice(start);
+    const present = weights.filter((w): w is number => w != null);
     return {
-      months: allMonths.slice(startIdx),
-      weights: allWeights.slice(startIdx),
-      colors: allColors.slice(startIdx),
+      months: allMonths.slice(start),
+      weights,
+      deltas: allDeltas.slice(start),
+      // 体重軸は 0 始まりだと変化が見えないため、データ範囲±1kg に絞る
+      yMin: Math.floor(Math.min(...present)) - 1,
+      yMax: Math.ceil(Math.max(...present)) + 1,
     };
   }
 
-  const initial = getFilteredData(2);
+  const initial = getFilteredData("all");
 
   const chart = new Chart(document.getElementById("monthly-chart") as HTMLCanvasElement, {
     type: "bar",
     data: {
       labels: initial.months,
-      datasets: [{
-        label: "月平均体重",
-        data: initial.weights,
-        backgroundColor: initial.colors,
-        borderWidth: 0,
-        borderRadius: 4,
-        borderSkipped: false,
-      }],
+      datasets: [
+        {
+          type: "line" as const,
+          label: "月平均体重",
+          data: initial.weights,
+          borderColor: "rgba(67, 56, 202, 0.8)",
+          backgroundColor: "rgba(67, 56, 202, 0.8)",
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHitRadius: 10,
+          tension: 0.3,
+          spanGaps: false,
+          yAxisID: "y",
+        },
+        {
+          type: "bar" as const,
+          label: "前月比",
+          data: initial.deltas,
+          backgroundColor: deltaColors(initial.deltas),
+          borderWidth: 0,
+          borderRadius: 2,
+          borderSkipped: false,
+          yAxisID: "y1",
+        },
+      ],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
       plugins: {
-        legend: { display: false },
+        legend: {
+          display: true,
+          position: "top",
+          labels: {
+            font: { family: "'Plus Jakarta Sans', system-ui", size: 11 },
+            color: "#6b7280",
+            usePointStyle: true,
+            pointStyle: "circle",
+            padding: 16,
+          },
+        },
         tooltip: {
           backgroundColor: "#fff",
           titleColor: "#1a1a1a",
@@ -116,18 +156,38 @@ const dataJson = JSON.stringify(data);
           padding: 14,
           cornerRadius: 12,
           callbacks: {
-            label: (item) => `${item.raw} kg`,
+            label: (item) => {
+              if (item.raw == null) return "";
+              const v = item.raw as number;
+              if (item.dataset.label === "前月比") {
+                return `前月比:  ${v > 0 ? "+" : ""}${v} kg`;
+              }
+              return `月平均:  ${v} kg`;
+            },
           },
         },
       },
       scales: {
         x: {
-          ticks: { maxTicksLimit: 20, padding: 8 },
+          ticks: { maxTicksLimit: 14, padding: 8 },
           grid: { display: false },
         },
         y: {
+          position: "left",
+          min: initial.yMin,
+          max: initial.yMax,
           ticks: { padding: 14 },
           grid: { color: "rgba(0,0,0,0.03)" },
+          title: { display: true, text: "kg", color: "#9ca3af" },
+        },
+        y1: {
+          position: "right",
+          // 0 を中心に上下対称のレンジにして増減を読み取りやすくする
+          suggestedMin: -2,
+          suggestedMax: 2,
+          ticks: { padding: 12 },
+          grid: { display: false },
+          title: { display: true, text: "前月比 (kg)", color: "#9ca3af" },
         },
       },
     },
@@ -144,7 +204,10 @@ const dataJson = JSON.stringify(data);
     const filtered = getFilteredData(period === "all" ? "all" : parseInt(period));
     chart.data.labels = filtered.months;
     chart.data.datasets[0].data = filtered.weights;
-    chart.data.datasets[0].backgroundColor = filtered.colors;
+    chart.data.datasets[1].data = filtered.deltas;
+    chart.data.datasets[1].backgroundColor = deltaColors(filtered.deltas);
+    chart.options.scales!.y!.min = filtered.yMin;
+    chart.options.scales!.y!.max = filtered.yMax;
     chart.update();
   });
 </script>

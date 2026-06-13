@@ -18,7 +18,7 @@ const wowArrow = weekOverWeek != null ? (weekOverWeek <= 0 ? "\u2198" : "\u2197"
   <!-- Latest Weight -->
   <div class="bg-card rounded-2xl border border-border p-6 shadow-sm">
     <p class="text-[0.65rem] font-medium tracking-[0.12em] uppercase text-ink-muted mb-3">最新体重</p>
-    <p class="font-display text-2xl md:text-4xl font-600 tracking-tight text-ink leading-none">
+    <p class="font-display text-2xl md:text-4xl font-semibold tracking-tight text-ink leading-none">
       {latestWeight}
       <span class="text-base font-body font-normal text-ink-muted ml-0.5">kg</span>
     </p>
@@ -29,20 +29,20 @@ const wowArrow = weekOverWeek != null ? (weekOverWeek <= 0 ? "\u2198" : "\u2197"
   <div class="bg-card rounded-2xl border border-border p-6 shadow-sm">
     <p class="text-[0.65rem] font-medium tracking-[0.12em] uppercase text-ink-muted mb-3">前週比</p>
     {weekOverWeek != null ? (
-      <p class={`font-display text-2xl md:text-4xl font-600 tracking-tight leading-none ${wowPositive ? "text-warm" : "text-sage"}`}>
+      <p class={`font-display text-2xl md:text-4xl font-semibold tracking-tight leading-none ${wowPositive ? "text-warm" : "text-sage"}`}>
         {wowSign}{weekOverWeek}
         <span class="text-base font-body font-normal ml-0.5">kg</span>
         <span class="text-lg ml-1">{wowArrow}</span>
       </p>
     ) : (
-      <p class="font-display text-2xl md:text-4xl font-600 text-ink-muted leading-none">—</p>
+      <p class="font-display text-2xl md:text-4xl font-semibold text-ink-muted leading-none">—</p>
     )}
   </div>
 
   <!-- 30d Moving Average -->
   <div class="bg-card rounded-2xl border border-border p-6 shadow-sm">
     <p class="text-[0.65rem] font-medium tracking-[0.12em] uppercase text-ink-muted mb-3">30日平均</p>
-    <p class="font-display text-2xl md:text-4xl font-600 tracking-tight text-ink leading-none">
+    <p class="font-display text-2xl md:text-4xl font-semibold tracking-tight text-ink leading-none">
       {movingAvg30}
       <span class="text-base font-body font-normal text-ink-muted ml-0.5">kg</span>
     </p>
@@ -51,7 +51,7 @@ const wowArrow = weekOverWeek != null ? (weekOverWeek <= 0 ? "\u2198" : "\u2197"
   <!-- BMI -->
   <div class="bg-card rounded-2xl border border-border p-6 shadow-sm">
     <p class="text-[0.65rem] font-medium tracking-[0.12em] uppercase text-ink-muted mb-3">BMI</p>
-    <p class="font-display text-2xl md:text-4xl font-600 tracking-tight text-ink leading-none">
+    <p class="font-display text-2xl md:text-4xl font-semibold tracking-tight text-ink leading-none">
       {bmi}
     </p>
   </div>
