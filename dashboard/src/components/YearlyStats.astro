@@ -9,7 +9,7 @@ const { data } = Astro.props;
 ---
 
 <div class="bg-card rounded-2xl border border-border p-4 md:p-6 shadow-sm animate-fade-up" style="animation-delay: 0.4s;">
-  <h2 class="font-display text-base md:text-lg font-500 tracking-tight text-ink mb-4 md:mb-5">年次統計</h2>
+  <h2 class="font-display text-base md:text-lg font-medium tracking-tight text-ink mb-4 md:mb-5">年次統計</h2>
   <div class="overflow-x-auto">
     <table class="w-full text-sm">
       <thead>
@@ -24,7 +24,7 @@ const { data } = Astro.props;
       <tbody>
         {data.map((row, i) => (
           <tr class="border-b border-gray-50 hover:bg-surface/50 transition-colors">
-            <td class="py-3 px-4 font-display font-500 text-ink">{row.year}</td>
+            <td class="py-3 px-4 font-display font-medium text-ink">{row.year}</td>
             <td class="py-3 px-4 text-right font-body text-ink-secondary tabular-nums">{row.avgWeight} <span class="text-ink-muted text-xs">kg</span></td>
             <td class="py-3 px-4 text-right font-body text-ink-secondary tabular-nums">{row.minWeight} <span class="text-ink-muted text-xs">kg</span></td>
             <td class="py-3 px-4 text-right font-body text-ink-secondary tabular-nums">{row.maxWeight} <span class="text-ink-muted text-xs">kg</span></td>

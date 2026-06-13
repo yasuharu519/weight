@@ -24,7 +24,7 @@ const metrics = latest
 
 {latest && (
   <div class="animate-fade-up" style="animation-delay: 0.36s;">
-    <h2 class="font-display text-base md:text-lg font-500 tracking-tight text-ink mb-4">メタボリクス・体組成</h2>
+    <h2 class="font-display text-base md:text-lg font-medium tracking-tight text-ink mb-4">メタボリクス・体組成</h2>
     <div class="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-5 mb-6 md:mb-8">
       {metrics.map((m) => (
         <div class="bg-card rounded-2xl border border-border p-5 shadow-sm">
@@ -32,7 +32,7 @@ const metrics = latest
             <span class={`w-1.5 h-1.5 rounded-full ${m.color} shrink-0`}></span>
             <p class="text-[0.65rem] font-medium tracking-[0.12em] uppercase text-ink-muted">{m.label}</p>
           </div>
-          <p class="font-display text-2xl md:text-3xl font-600 tracking-tight text-ink leading-none">
+          <p class="font-display text-2xl md:text-3xl font-semibold tracking-tight text-ink leading-none">
             {m.value}
             {m.unit && <span class="text-sm md:text-base font-body font-normal text-ink-muted ml-0.5">{m.unit}</span>}
           </p>
