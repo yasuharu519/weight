@@ -2,7 +2,7 @@ name: Update metrics data
 
 on:
   repository_dispatch:
-    types: [weight_updated]
+    types: [weight_updated, sleep_updated]
   schedule:
     - cron: "0 0 * * *" # フォールバック: 毎日 JST 9:00
   workflow_dispatch: {}
@@ -61,14 +61,43 @@ jobs:
             echo "latest_muscle=${latest_muscle}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Get last synced sleep datetime
+        id: last_sleep_date
+        run: |
+          if [ -f sleep.jsonl ]; then
+            last=$(tail -1 sleep.jsonl | jq -r '.start_at')
+            echo "datetime=${last}" >> "$GITHUB_OUTPUT"
+          else
+            echo "datetime=2024-03-19 00:00:00+09:00" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch new sleep data from D1
+        id: fetch_sleep
+        run: |
+          response=$(curl -sf -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/d1/database/${{ secrets.D1_DATABASE_ID }}/query" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"sql\": \"SELECT date, start_at, end_at, total_sleep_time, total_time_in_bed, sleep_efficiency, sleep_latency, wakeup_latency, waso, nb_rem_episodes, light_sleep_duration, deep_sleep_duration, rem_sleep_duration, wakeup_count, wakeup_duration, out_of_bed_count, hr_average, hr_min, hr_max, rr_average, rr_min, rr_max, snoring, snoring_episode_count, sleep_score, apnea_hypopnea_index, breathing_disturbances_intensity, night_events FROM sleep_summaries WHERE start_at > ? ORDER BY start_at ASC\", \"params\": [\"${{ steps.last_sleep_date.outputs.datetime }}\"]}")
+
+          count=$(echo "$response" | jq '.result[0].results | length')
+          echo "count=${count}" >> "$GITHUB_OUTPUT"
+
+          if [ "$count" -gt 0 ]; then
+            echo "$response" | jq -c '.result[0].results[]' >> sleep.jsonl
+          fi
+
       - name: Commit and push
-        if: steps.fetch.outputs.count != '0'
+        if: steps.fetch.outputs.count != '0' || steps.fetch_sleep.outputs.count != '0'
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add data.jsonl
+          if [ -f sleep.jsonl ]; then
+            git add sleep.jsonl
+          fi
           datetime=$(date '+%F %T')
-          git commit -m "Sync weight data from D1 on ${datetime}"
+          git commit -m "Sync metrics data from D1 on ${datetime}"
           git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_REF_NAME}"
         env:
           TZ: Asia/Tokyo
