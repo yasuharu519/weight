@@ -1,0 +1,191 @@
+---
+import type { SleepRecord } from "../lib/sleep";
+
+interface Props {
+  data: SleepRecord[];
+}
+
+const { data } = Astro.props;
+const dataJson = JSON.stringify(data);
+---
+
+<div class="bg-card rounded-2xl border border-border p-4 md:p-6 shadow-sm mb-6 md:mb-8 animate-fade-up" style="animation-delay: 0.44s;">
+  <div class="flex items-center justify-between mb-4 md:mb-5">
+    <h2 class="font-display text-base md:text-lg font-medium tracking-tight text-ink">睡眠</h2>
+    <div class="flex gap-1 md:gap-1.5" id="sleep-period-buttons">
+      <button data-period="1" class="sleep-btn">1M</button>
+      <button data-period="3" class="sleep-btn">3M</button>
+      <button data-period="6" class="sleep-btn">6M</button>
+      <button data-period="12" class="sleep-btn">1Y</button>
+      <button data-period="all" class="sleep-btn sleep-active">ALL</button>
+    </div>
+  </div>
+  <div class="h-[280px] md:h-[380px]">
+    <canvas id="sleep-chart"></canvas>
+  </div>
+</div>
+
+<style>
+  @reference "../styles/global.css";
+  .sleep-btn {
+    @apply text-[0.7rem] font-medium tracking-wide px-3 py-1 rounded-full
+           border border-transparent text-ink-muted
+           hover:text-ink-secondary hover:bg-gray-50
+           transition-all duration-200 cursor-pointer;
+  }
+  .sleep-active {
+    @apply bg-accent-soft text-accent border-indigo-200;
+  }
+</style>
+
+<script is:inline define:vars={{ dataJson }}>
+  window.__sleepData = JSON.parse(dataJson);
+</script>
+
+<script>
+  import Chart from "chart.js/auto";
+
+  const data = (window as any).__sleepData;
+  if (data && data.length > 0) {
+    const toHours = (sec: number) => Math.round((sec / 3600) * 100) / 100;
+    const formatDuration = (seconds: number) => {
+      const totalMinutes = Math.round(seconds / 60);
+      const h = Math.floor(totalMinutes / 60);
+      const m = totalMinutes % 60;
+      return `${h}h ${String(m).padStart(2, "0")}m`;
+    };
+
+    const allDates = data.map((d: any) => d.date);
+    const allDeep = data.map((d: any) => toHours(d.deep));
+    const allLight = data.map((d: any) => toHours(d.light));
+    const allRem = data.map((d: any) => toHours(d.rem));
+    const allWaso = data.map((d: any) => toHours(d.waso));
+
+    const chart = new Chart(document.getElementById("sleep-chart") as HTMLCanvasElement, {
+      type: "bar",
+      data: {
+        labels: allDates,
+        datasets: [
+          {
+            label: "深い",
+            data: allDeep,
+            backgroundColor: "rgba(67, 56, 202, 0.85)",
+          },
+          {
+            label: "浅い",
+            data: allLight,
+            backgroundColor: "rgba(99, 102, 241, 0.45)",
+          },
+          {
+            label: "REM",
+            data: allRem,
+            backgroundColor: "rgba(129, 140, 248, 0.25)",
+          },
+          {
+            label: "中途覚醒",
+            data: allWaso,
+            backgroundColor: "rgba(156, 163, 175, 0.35)",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: {
+            display: true,
+            position: "top",
+            labels: {
+              font: { family: "'Plus Jakarta Sans', system-ui", size: 11 },
+              color: "#6b7280",
+              usePointStyle: true,
+              pointStyle: "circle",
+              padding: 16,
+            },
+          },
+          tooltip: {
+            backgroundColor: "#fff",
+            titleColor: "#1a1a1a",
+            bodyColor: "#6b7280",
+            footerColor: "#1a1a1a",
+            borderColor: "#e8e4df",
+            borderWidth: 1,
+            titleFont: { family: "'Fraunces', Georgia, serif", weight: "500", size: 13 },
+            bodyFont: { family: "'Plus Jakarta Sans', system-ui", size: 12 },
+            footerFont: { family: "'Plus Jakarta Sans', system-ui", size: 12, weight: "500" },
+            padding: 14,
+            cornerRadius: 12,
+            boxPadding: 6,
+            callbacks: {
+              label: (item: any) => {
+                const idx = allDates.indexOf(item.chart.data.labels[item.dataIndex]);
+                const record = data[idx];
+                const seconds = { 深い: record.deep, 浅い: record.light, REM: record.rem, 中途覚醒: record.waso }[
+                  item.dataset.label as string
+                ];
+                return `${item.dataset.label}:  ${formatDuration(seconds)}`;
+              },
+              footer: (items: any[]) => {
+                const idx = allDates.indexOf(items[0].chart.data.labels[items[0].dataIndex]);
+                const record = data[idx];
+                const lines = [`合計:  ${formatDuration(record.totalSleepTime)}`];
+                if (record.score != null) lines.push(`スコア:  ${record.score}/100`);
+                if (record.wakeupCount != null) lines.push(`中途覚醒:  ${record.wakeupCount}回`);
+                return lines;
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            stacked: true,
+            ticks: { maxTicksLimit: 10, padding: 10 },
+            grid: { display: false },
+          },
+          y: {
+            stacked: true,
+            ticks: { padding: 14 },
+            grid: { color: "rgba(0,0,0,0.03)" },
+            title: { display: true, text: "時間 (h)", color: "#9ca3af" },
+          },
+        },
+      },
+    });
+
+    const allSeries = [allDeep, allLight, allRem, allWaso];
+
+    function filterByMonths(months: number | "all") {
+      if (months === "all") {
+        chart.data.labels = allDates;
+        allSeries.forEach((series, i) => {
+          chart.data.datasets[i].data = series;
+        });
+      } else {
+        const lastDate = new Date(allDates[allDates.length - 1]);
+        const cutoff = new Date(lastDate);
+        cutoff.setMonth(cutoff.getMonth() - months);
+        const cutoffStr = cutoff.toISOString().split("T")[0];
+        const startIdx = allDates.findIndex((d: string) => d >= cutoffStr);
+        if (startIdx >= 0) {
+          chart.data.labels = allDates.slice(startIdx);
+          allSeries.forEach((series, i) => {
+            chart.data.datasets[i].data = series.slice(startIdx);
+          });
+        }
+      }
+      chart.update();
+    }
+
+    document.getElementById("sleep-period-buttons")?.addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest("button");
+      if (!btn) return;
+      const period = btn.dataset.period!;
+      document.querySelectorAll("#sleep-period-buttons button").forEach((b) => {
+        b.className = "sleep-btn";
+      });
+      btn.classList.add("sleep-active");
+      filterByMonths(period === "all" ? "all" : parseInt(period));
+    });
+  }
+</script>
