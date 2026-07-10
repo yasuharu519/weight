@@ -7,6 +7,8 @@ import BodyCompChart from "../components/BodyCompChart.astro";
 import MetabolicsCards from "../components/MetabolicsCards.astro";
 import MonthlyTrend from "../components/MonthlyTrend.astro";
 import YearlyStats from "../components/YearlyStats.astro";
+import SleepSummaryCards from "../components/SleepSummaryCards.astro";
+import SleepChart from "../components/SleepChart.astro";
 import {
   loadData,
   calcMovingAverage,
@@ -14,12 +16,16 @@ import {
   calcYearlyStats,
   calcWeekOverWeek,
 } from "../lib/data";
+import { loadSleepData, calcSleepStats } from "../lib/sleep";
 
 const data = loadData();
 const movingAvg = calcMovingAverage(data, 30);
 const monthlyAvg = calcMonthlyAvg(data);
 const yearlyStats = calcYearlyStats(data);
 const weekOverWeek = calcWeekOverWeek(data);
+
+const sleepData = loadSleepData();
+const sleepStats = calcSleepStats(sleepData);
 
 const latest = data[data.length - 1];
 const latestMA = movingAvg[movingAvg.length - 1];
@@ -37,6 +43,14 @@ const latestMA = movingAvg[movingAvg.length - 1];
   <FatChart data={data} movingAvg={movingAvg} />
   <MetabolicsCards data={data} />
   <BodyCompChart data={data} />
+  {
+    sleepStats && (
+      <>
+        <SleepSummaryCards stats={sleepStats} />
+        <SleepChart data={sleepData} />
+      </>
+    )
+  }
   <MonthlyTrend data={monthlyAvg} />
   <YearlyStats data={yearlyStats} />
 </Layout>
