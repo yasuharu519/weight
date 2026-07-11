@@ -7,6 +7,10 @@ on:
     - cron: "0 0 * * *" # フォールバック: 毎日 JST 9:00
   workflow_dispatch: {}
 
+concurrency:
+  group: update-metrics
+  cancel-in-progress: true
+
 jobs:
   sync:
     runs-on: ubuntu-latest
