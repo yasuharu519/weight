@@ -171,6 +171,35 @@ const dataJson = JSON.stringify(data);
     const yMax = wakeVals.length > 0 ? Math.ceil(Math.max(...wakeVals)) + 1 : 10;
     const fmtClock = (v: number) => `${((Math.round(v) % 24) + 24) % 24}:00`;
 
+    // 既存ステージグラフと同じパレット
+    const STAGE_COLORS: Record<number, string> = {
+      0: "rgba(156, 163, 175, 0.5)", // 覚醒
+      1: "rgba(99, 102, 241, 0.45)", // 浅い
+      2: "rgba(67, 56, 202, 0.85)", // 深い
+      3: "rgba(129, 140, 248, 0.35)", // REM
+    };
+    const FALLBACK_SEG_COLOR = "rgba(156, 163, 175, 0.3)"; // 未知の state
+    const TRANSPARENT = "rgba(0, 0, 0, 0)";
+
+    // dataset 0 (アンカー): 全夜の [就寝, 起床]。ツールチップはこれにだけ出す。
+    // ステージ区間がある夜は透明にして、上に重ねる区間データセットで色分けする
+    const anchorColors = data.map((d: any) =>
+      d.stageSegments ? TRANSPARENT : "rgba(99, 102, 241, 0.6)",
+    );
+    const maxSegs = Math.max(0, ...data.map((d: any) => d.stageSegments?.length ?? 0));
+    const segData = Array.from({ length: maxSegs }, (_, i) =>
+      data.map((d: any) => {
+        const s = d.stageSegments?.[i];
+        return s ? [s.startH, s.endH] : null;
+      }),
+    );
+    const segColors = Array.from({ length: maxSegs }, (_, i) =>
+      data.map((d: any) => {
+        const s = d.stageSegments?.[i];
+        return s ? (STAGE_COLORS[s.state] ?? FALLBACK_SEG_COLOR) : TRANSPARENT;
+      }),
+    );
+
     const scheduleChart = new Chart(
       document.getElementById("sleep-schedule-chart") as HTMLCanvasElement,
       {
@@ -180,10 +209,17 @@ const dataJson = JSON.stringify(data);
           datasets: [
             {
               data: allSchedule,
-              backgroundColor: "rgba(99, 102, 241, 0.6)",
+              backgroundColor: anchorColors,
               borderRadius: 4,
               borderSkipped: false,
+              grouped: false,
             },
+            ...segData.map((sd, i) => ({
+              data: sd,
+              backgroundColor: segColors[i],
+              borderSkipped: false,
+              grouped: false,
+            })),
           ],
         },
         options: {
@@ -191,7 +227,30 @@ const dataJson = JSON.stringify(data);
           maintainAspectRatio: false,
           interaction: { mode: "index", intersect: false },
           plugins: {
-            legend: { display: false },
+            legend: {
+              display: maxSegs > 0,
+              position: "top",
+              onClick: () => {},
+              labels: {
+                font: { family: "'Plus Jakarta Sans', system-ui", size: 11 },
+                color: "#6b7280",
+                usePointStyle: true,
+                pointStyle: "circle",
+                padding: 16,
+                generateLabels: () =>
+                  [
+                    ["深い", 2],
+                    ["浅い", 1],
+                    ["REM", 3],
+                    ["覚醒", 0],
+                  ].map(([text, state]) => ({
+                    text: text as string,
+                    fillStyle: STAGE_COLORS[state as number],
+                    strokeStyle: STAGE_COLORS[state as number],
+                    pointStyle: "circle" as const,
+                  })),
+              },
+            },
             tooltip: {
               backgroundColor: "#fff",
               titleColor: "#1a1a1a",
@@ -204,6 +263,8 @@ const dataJson = JSON.stringify(data);
               cornerRadius: 12,
               boxPadding: 6,
               displayColors: false,
+              // 夜単位の情報はアンカー (dataset 0) にだけ出す
+              filter: (item: any) => item.datasetIndex === 0,
               callbacks: {
                 label: (item: any) => {
                   const idx = allDates.indexOf(item.chart.data.labels[item.dataIndex]);
@@ -255,6 +316,11 @@ const dataJson = JSON.stringify(data);
       chart.update();
       scheduleChart.data.labels = allDates.slice(startIdx);
       scheduleChart.data.datasets[0].data = allSchedule.slice(startIdx);
+      (scheduleChart.data.datasets[0] as any).backgroundColor = anchorColors.slice(startIdx);
+      segData.forEach((sd, i) => {
+        scheduleChart.data.datasets[i + 1].data = sd.slice(startIdx);
+        (scheduleChart.data.datasets[i + 1] as any).backgroundColor = segColors[i].slice(startIdx);
+      });
       scheduleChart.update();
     }
 

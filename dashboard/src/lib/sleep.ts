@@ -15,6 +15,7 @@ interface RawSleepRecord {
   wakeup_count?: number | null;
   sleep_score?: number | null;
   hr_average?: number | null;
+  stage_segments?: string | null;
 }
 
 export interface SleepRecord {
@@ -33,6 +34,8 @@ export interface SleepRecord {
   bedTime: string | null; // "23:33"
   wakeTime: string | null; // "07:27"
   timeInBed: number | null; // 秒
+  // 夜の中のステージ区間 (date の 0:00 基準の時間)。state: 0=覚醒, 1=浅い, 2=深い, 3=REM
+  stageSegments: { startH: number; endH: number; state: number }[] | null;
 }
 
 export interface SleepStats {
@@ -64,6 +67,30 @@ function parseClockOffset(
   const dayDiff =
     (Date.UTC(+y, +mo - 1, +d) - Date.UTC(by, bm - 1, bd)) / 86_400_000;
   return { offsetH: dayDiff * 24 + +h + +mi / 60, clock: `${h}:${mi}` };
+}
+
+// stage_segments ([[start_at からのオフセット秒, 長さ秒, state], ...] の JSON) を
+// date の 0:00 基準の時間区間に変換する。就寝〜起床の範囲にクリップし、不正は null
+function parseStageSegments(
+  raw: string | null | undefined,
+  bedOffsetH: number | null,
+  wakeOffsetH: number | null,
+): { startH: number; endH: number; state: number }[] | null {
+  if (!raw || bedOffsetH == null || wakeOffsetH == null) return null;
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr) || arr.length === 0) return null;
+    const segs = arr
+      .map(([off, dur, state]: number[]) => ({
+        startH: Math.max(bedOffsetH + off / 3600, bedOffsetH),
+        endH: Math.min(bedOffsetH + (off + dur) / 3600, wakeOffsetH),
+        state,
+      }))
+      .filter((s) => s.endH > s.startH);
+    return segs.length > 0 ? segs : null;
+  } catch {
+    return null;
+  }
 }
 
 export function loadSleepData(): SleepRecord[] {
@@ -119,6 +146,11 @@ export function loadSleepData(): SleepRecord[] {
           (bed && wake
             ? Math.round((wake.offsetH - bed.offsetH) * 3600)
             : null),
+        stageSegments: parseStageSegments(
+          r.stage_segments,
+          bed?.offsetH ?? null,
+          wake?.offsetH ?? null,
+        ),
       };
     })
     .sort((a, b) => a.date.localeCompare(b.date));
