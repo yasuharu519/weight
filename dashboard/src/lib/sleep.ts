@@ -28,6 +28,11 @@ export interface SleepRecord {
   hrAverage: number | null;
   wakeupCount: number | null;
   efficiency: number | null; // 0-1
+  bedOffsetH: number | null; // date の 0:00 からの相対時間 (h)。前日23:33 → -0.45
+  wakeOffsetH: number | null; // 7:27 → 7.45
+  bedTime: string | null; // "23:33"
+  wakeTime: string | null; // "07:27"
+  timeInBed: number | null; // 秒
 }
 
 export interface SleepStats {
@@ -41,6 +46,24 @@ export function formatDuration(seconds: number): string {
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
   return `${h}h ${String(m).padStart(2, "0")}m`;
+}
+
+const TS_RE = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/;
+
+// "2026-07-08 23:33:00+09:00" を baseDate ("2026-07-09") の 0:00 起点の
+// 相対時間に変換。Date のローカル TZ 変換を通さないので閲覧者の TZ に依存しない
+function parseClockOffset(
+  ts: string | null | undefined,
+  baseDate: string,
+): { offsetH: number; clock: string } | null {
+  if (!ts) return null;
+  const m = TS_RE.exec(ts);
+  if (!m) return null;
+  const [, y, mo, d, h, mi] = m;
+  const [by, bm, bd] = baseDate.split("-").map(Number);
+  const dayDiff =
+    (Date.UTC(+y, +mo - 1, +d) - Date.UTC(by, bm - 1, bd)) / 86_400_000;
+  return { offsetH: dayDiff * 24 + +h + +mi / 60, clock: `${h}:${mi}` };
 }
 
 export function loadSleepData(): SleepRecord[] {
@@ -73,18 +96,31 @@ export function loadSleepData(): SleepRecord[] {
   }
 
   return Array.from(byDate.values())
-    .map((r) => ({
-      date: r.date,
-      totalSleepTime: r.total_sleep_time!,
-      deep: r.deep_sleep_duration ?? 0,
-      light: r.light_sleep_duration ?? 0,
-      rem: r.rem_sleep_duration ?? 0,
-      waso: r.waso ?? 0,
-      score: r.sleep_score ?? null,
-      hrAverage: r.hr_average ?? null,
-      wakeupCount: r.wakeup_count ?? null,
-      efficiency: r.sleep_efficiency ?? null,
-    }))
+    .map((r) => {
+      const bed = parseClockOffset(r.start_at, r.date);
+      const wake = parseClockOffset(r.end_at, r.date);
+      return {
+        date: r.date,
+        totalSleepTime: r.total_sleep_time!,
+        deep: r.deep_sleep_duration ?? 0,
+        light: r.light_sleep_duration ?? 0,
+        rem: r.rem_sleep_duration ?? 0,
+        waso: r.waso ?? 0,
+        score: r.sleep_score ?? null,
+        hrAverage: r.hr_average ?? null,
+        wakeupCount: r.wakeup_count ?? null,
+        efficiency: r.sleep_efficiency ?? null,
+        bedOffsetH: bed?.offsetH ?? null,
+        wakeOffsetH: wake?.offsetH ?? null,
+        bedTime: bed?.clock ?? null,
+        wakeTime: wake?.clock ?? null,
+        timeInBed:
+          r.total_time_in_bed ??
+          (bed && wake
+            ? Math.round((wake.offsetH - bed.offsetH) * 3600)
+            : null),
+      };
+    })
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 

@@ -10,8 +10,14 @@ const dataJson = JSON.stringify(data);
 ---
 
 <div class="bg-card rounded-2xl border border-border p-4 md:p-6 shadow-sm mb-6 md:mb-8 animate-fade-up" style="animation-delay: 0.44s;">
-  <div class="flex items-center justify-between mb-4 md:mb-5">
-    <h2 class="font-display text-base md:text-lg font-medium tracking-tight text-ink">睡眠</h2>
+  <div class="flex flex-wrap items-center justify-between gap-2 mb-4 md:mb-5">
+    <div class="flex items-center gap-2 md:gap-3">
+      <h2 class="font-display text-base md:text-lg font-medium tracking-tight text-ink">睡眠</h2>
+      <div class="flex gap-1" id="sleep-tab-buttons">
+        <button data-tab="stages" class="sleep-btn sleep-active">ステージ</button>
+        <button data-tab="schedule" class="sleep-btn">就寝・起床</button>
+      </div>
+    </div>
     <div class="flex gap-1 md:gap-1.5" id="sleep-period-buttons">
       <button data-period="1" class="sleep-btn">1M</button>
       <button data-period="3" class="sleep-btn">3M</button>
@@ -20,8 +26,11 @@ const dataJson = JSON.stringify(data);
       <button data-period="all" class="sleep-btn sleep-active">ALL</button>
     </div>
   </div>
-  <div class="h-[280px] md:h-[380px]">
+  <div id="sleep-panel-stages" class="h-[280px] md:h-[380px]">
     <canvas id="sleep-chart"></canvas>
+  </div>
+  <div id="sleep-panel-schedule" class="h-[280px] md:h-[380px] hidden">
+    <canvas id="sleep-schedule-chart"></canvas>
   </div>
 </div>
 
@@ -153,29 +162,115 @@ const dataJson = JSON.stringify(data);
       },
     });
 
+    const allSchedule = data.map((d: any) =>
+      d.bedOffsetH != null && d.wakeOffsetH != null ? [d.bedOffsetH, d.wakeOffsetH] : null,
+    );
+    const bedVals = data.map((d: any) => d.bedOffsetH).filter((v: any) => v != null);
+    const wakeVals = data.map((d: any) => d.wakeOffsetH).filter((v: any) => v != null);
+    const yMin = bedVals.length > 0 ? Math.floor(Math.min(...bedVals)) - 1 : -2;
+    const yMax = wakeVals.length > 0 ? Math.ceil(Math.max(...wakeVals)) + 1 : 10;
+    const fmtClock = (v: number) => `${((Math.round(v) % 24) + 24) % 24}:00`;
+
+    const scheduleChart = new Chart(
+      document.getElementById("sleep-schedule-chart") as HTMLCanvasElement,
+      {
+        type: "bar",
+        data: {
+          labels: allDates,
+          datasets: [
+            {
+              data: allSchedule,
+              backgroundColor: "rgba(99, 102, 241, 0.6)",
+              borderRadius: 4,
+              borderSkipped: false,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: "#fff",
+              titleColor: "#1a1a1a",
+              bodyColor: "#6b7280",
+              borderColor: "#e8e4df",
+              borderWidth: 1,
+              titleFont: { family: "'Fraunces', Georgia, serif", weight: "500", size: 13 },
+              bodyFont: { family: "'Plus Jakarta Sans', system-ui", size: 12 },
+              padding: 14,
+              cornerRadius: 12,
+              boxPadding: 6,
+              displayColors: false,
+              callbacks: {
+                label: (item: any) => {
+                  const idx = allDates.indexOf(item.chart.data.labels[item.dataIndex]);
+                  const record = data[idx];
+                  const lines = [`就寝:  ${record.bedTime}`, `起床:  ${record.wakeTime}`];
+                  if (record.timeInBed != null) lines.push(`在床:  ${formatDuration(record.timeInBed)}`);
+                  lines.push(`睡眠:  ${formatDuration(record.totalSleepTime)}`);
+                  if (record.efficiency != null) lines.push(`効率:  ${Math.round(record.efficiency * 100)}%`);
+                  return lines;
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              ticks: { maxTicksLimit: 10, padding: 10 },
+              grid: { display: false },
+            },
+            y: {
+              reverse: true,
+              min: yMin,
+              max: yMax,
+              ticks: { stepSize: 1, callback: fmtClock, padding: 14 },
+              grid: { color: "rgba(0,0,0,0.03)" },
+              title: { display: true, text: "時刻", color: "#9ca3af" },
+            },
+          },
+        },
+      },
+    );
+
     const allSeries = [allDeep, allLight, allRem, allWaso];
 
     function filterByMonths(months: number | "all") {
-      if (months === "all") {
-        chart.data.labels = allDates;
-        allSeries.forEach((series, i) => {
-          chart.data.datasets[i].data = series;
-        });
-      } else {
+      let startIdx = 0;
+      if (months !== "all") {
         const lastDate = new Date(allDates[allDates.length - 1]);
         const cutoff = new Date(lastDate);
         cutoff.setMonth(cutoff.getMonth() - months);
         const cutoffStr = cutoff.toISOString().split("T")[0];
-        const startIdx = allDates.findIndex((d: string) => d >= cutoffStr);
-        if (startIdx >= 0) {
-          chart.data.labels = allDates.slice(startIdx);
-          allSeries.forEach((series, i) => {
-            chart.data.datasets[i].data = series.slice(startIdx);
-          });
-        }
+        const idx = allDates.findIndex((d: string) => d >= cutoffStr);
+        if (idx < 0) return;
+        startIdx = idx;
       }
+      chart.data.labels = allDates.slice(startIdx);
+      allSeries.forEach((series, i) => {
+        chart.data.datasets[i].data = series.slice(startIdx);
+      });
       chart.update();
+      scheduleChart.data.labels = allDates.slice(startIdx);
+      scheduleChart.data.datasets[0].data = allSchedule.slice(startIdx);
+      scheduleChart.update();
     }
+
+    document.getElementById("sleep-tab-buttons")?.addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest("button");
+      if (!btn) return;
+      const tab = btn.dataset.tab!;
+      document.querySelectorAll("#sleep-tab-buttons button").forEach((b) => {
+        b.className = "sleep-btn";
+      });
+      btn.classList.add("sleep-active");
+      document.getElementById("sleep-panel-stages")?.classList.toggle("hidden", tab !== "stages");
+      document.getElementById("sleep-panel-schedule")?.classList.toggle("hidden", tab !== "schedule");
+      if (tab === "schedule") scheduleChart.resize();
+      else chart.resize();
+    });
 
     document.getElementById("sleep-period-buttons")?.addEventListener("click", (e) => {
       const btn = (e.target as HTMLElement).closest("button");
