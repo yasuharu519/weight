@@ -16,7 +16,9 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  # true にすると、if 条件で全ジョブが skip される run (失敗した sync 由来など)
+  # でも起動した瞬間に実行中のデプロイをキャンセルしてしまうため false にする
+  cancel-in-progress: false
 
 defaults:
   run:
