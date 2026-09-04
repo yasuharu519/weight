@@ -57,9 +57,11 @@ jobs:
             }' >> data.jsonl
 
             # 最新データを取得（通知用）
-            latest_weight=$(echo "$response" | jq -r '(.result[0].results[-1].weight * 100 | round) / 100')
-            latest_fat_ratio=$(echo "$response" | jq -r '(.result[0].results[-1].fat_ratio * 100 | round) / 100')
-            latest_muscle=$(echo "$response" | jq -r '(.result[0].results[-1].muscle_mass * 100 | round) / 100')
+            # 体組成が計測されなかった場合は null になるため、null なら "-" を返す
+            round2='if . == null then "-" else (. * 100 | round) / 100 end'
+            latest_weight=$(echo "$response" | jq -r ".result[0].results[-1].weight | ${round2}")
+            latest_fat_ratio=$(echo "$response" | jq -r ".result[0].results[-1].fat_ratio | ${round2}")
+            latest_muscle=$(echo "$response" | jq -r ".result[0].results[-1].muscle_mass | ${round2}")
             echo "latest_weight=${latest_weight}" >> "$GITHUB_OUTPUT"
             echo "latest_fat_ratio=${latest_fat_ratio}" >> "$GITHUB_OUTPUT"
             echo "latest_muscle=${latest_muscle}" >> "$GITHUB_OUTPUT"
